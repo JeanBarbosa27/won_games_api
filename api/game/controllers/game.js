@@ -6,8 +6,11 @@
  */
 
 module.exports = {
-  populate: (ctx) => {
-    console.log('Populate service initializing...');
-    ctx.send({ ok: true })
+  populate: async (ctx) => {
+    console.log('Starting to populate games...');
+
+    await strapi.services.game.populate();
+
+    ctx.send('Populating finished!')
   }
 };

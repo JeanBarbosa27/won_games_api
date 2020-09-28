@@ -5,4 +5,8 @@
  * to customize this service
  */
 
-module.exports = {};
+module.exports = {
+  populate: async(params) => {
+    console.log('Executing game service...')
+  }
+};

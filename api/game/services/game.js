@@ -23,21 +23,24 @@ async function getGameInfo(slug) {
                   .getAttribute('xlink:href')
                   .replace(/_/g, '')
                   .replace(/[^\w-]+/g, '')
-              : 'br0',
+              : 'BR0',
     short_description: descriptionElement.textContent.trim().slice(0, 160),
     description: descriptionElement.innerHTML
   }
 }
 
-async function handleRelationCreation(relationType, name) {
-  const findRelation = await strapi.services[relationType].findOne({ name: name })
+async function findByName(entityName, registerName) {
+  const entity = await strapi.services[entityName].findOne({ name: registerName })
+  return entity;
+}
 
-  console.log('findRelation: ', findRelation);
+async function handleRelationCreation(entityName, registerName) {
+  const findRelation = await findByName(entityName, registerName)
 
   if(!findRelation) {
-    await strapi.services[relationType].create({
-      name: name,
-      slug: slugify(name, { lower: true })
+    await strapi.services[entityName].create({
+      name: registerName,
+      slug: slugify(registerName, { lower: true })
     })
   }
 }
@@ -76,6 +79,38 @@ async function createManyToManyData(products) {
   ])
 }
 
+async function createGame(products) {
+  Promise.all(
+    products.map(async (product) => {
+      const findGame = await findByName('game', product.title)
+
+      if(!findGame) {
+        console.log(`Creating game: ${product.title}...`)
+
+        const game = strapi.services.game.create({
+          name: product.title,
+          slug: product.slug.replace(/_/g, '-'),
+          price: product.price.amount,
+          release_date: new Date(Number(
+            product.globalReleaseDate * 1000
+          )).toISOString(),
+          categories: await Promise.all(
+            product.genres.map(name => findByName('category', name))
+          ),
+          developers: [await findByName('developer', product.developer)],
+          platforms: await Promise.all(
+            product.supportedOperatingSystems.map(name => findByName('platform', name))
+          ),
+          publisher: await findByName('publisher', product.publisher),
+          ...(await getGameInfo(product.slug))
+        })
+
+        return game
+      }
+    })
+  )
+}
+
 module.exports = {
   populate: async (params) => {
     console.log('Executing game service...')
@@ -86,8 +121,9 @@ module.exports = {
 
     console.log(await getGameInfo(products[1].slug))
 
-    await handleRelationCreation('publisher', products[1].publisher)
-
     await createManyToManyData([ products[2], products[3] ])
+    await createGame([ products[2], products[3] ])
+    console.log('Game service done!');
+
   }
 };

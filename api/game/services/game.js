@@ -37,9 +37,43 @@ async function handleRelationCreation(relationType, name) {
   if(!findRelation) {
     await strapi.services[relationType].create({
       name: name,
-      slug: slugify(name).toLowerCase()
+      slug: slugify(name, { lower: true })
     })
   }
+}
+
+async function createManyToManyData(products) {
+  const categories = {}
+  const developers = {}
+  const platforms = {}
+  const publishers = {}
+
+  products.forEach(
+    ({ genres, developer, supportedOperatingSystems, publisher }) => {
+      genres && genres.forEach(item => categories[item] = true)
+      developer && Array.isArray(developer)
+        ? developer.forEach(item => developers[item] = true)
+        : developers[developer] = true
+      supportedOperatingSystems
+        && supportedOperatingSystems.forEach(item => platforms[item] = true)
+      publishers[publisher] = true
+    }
+  )
+
+  return Promise.all([
+    ...Object.keys(categories).map(
+      category => handleRelationCreation('category', category)
+    ),
+    ...Object.keys(developers).map(
+      developer => handleRelationCreation('developer', developer)
+    ),
+    ...Object.keys(platforms).map(
+      platform => handleRelationCreation('platform', platform)
+    ),
+    ...Object.keys(publishers).map(
+      publisher => handleRelationCreation('publisher', publisher)
+    ),
+  ])
 }
 
 module.exports = {
@@ -54,12 +88,6 @@ module.exports = {
 
     await handleRelationCreation('publisher', products[1].publisher)
 
-    if (Array.isArray(products[1].developer)) {
-      products[1].developer.map(
-        developer => await handleRelationCreation('developer', developer)
-      )
-    } else {
-      await handleRelationCreation('developer', products[1].developer)
-    }
+    await createManyToManyData([ products[2], products[3] ])
   }
 };

@@ -54,7 +54,7 @@ async function handleRelationCreation(entityName, registerName) {
   if(!findRelation) {
     await strapi.services[entityName].create({
       name: registerName,
-      slug: slugify(registerName, { lower: true })
+      slug: slugify(registerName, { strict: true, lower: true })
     })
   }
 }
@@ -67,13 +67,11 @@ async function createManyToManyData(products) {
 
   products.forEach(
     ({ genres, developer, supportedOperatingSystems, publisher }) => {
+      developers[developer] = true
+      publishers[publisher] = true
       genres && genres.forEach(item => categories[item] = true)
-      developer && Array.isArray(developer)
-        ? developer.forEach(item => developers[item] = true)
-        : developers[developer] = true
       supportedOperatingSystems
         && supportedOperatingSystems.forEach(item => platforms[item] = true)
-      publishers[publisher] = true
     }
   )
 

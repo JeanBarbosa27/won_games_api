@@ -39,12 +39,12 @@
     "rating": {
       "type": "enumeration",
       "enum": [
-        "br0",
-        "br10",
-        "br12",
-        "br14",
-        "br16",
-        "br18"
+        "BR0",
+        "BR10",
+        "BR12",
+        "BR14",
+        "BR16",
+        "BR18"
       ],
       "required": true
     },

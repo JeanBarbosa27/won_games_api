@@ -6,6 +6,7 @@
  */
 
 const axios = require('axios')
+const slugify = require('slugify')
 
 async function getGameInfo(slug) {
   const jsdom = require('jsdom')
@@ -28,6 +29,19 @@ async function getGameInfo(slug) {
   }
 }
 
+async function handleRelationCreation(relationType, name) {
+  const findRelation = await strapi.services[relationType].findOne({ name: name })
+
+  console.log('findRelation: ', findRelation);
+
+  if(!findRelation) {
+    await strapi.services[relationType].create({
+      name: name,
+      slug: slugify(name).toLowerCase()
+    })
+  }
+}
+
 module.exports = {
   populate: async (params) => {
     console.log('Executing game service...')
@@ -37,5 +51,8 @@ module.exports = {
     const { data : { products } } = await axios.get(gogApiUrl)
 
     console.log(await getGameInfo(products[1].slug))
+
+    await handleRelationCreation('publisher', products[1].publisher)
+    await handleRelationCreation('developer', products[1].developer)
   }
 };

@@ -7,6 +7,7 @@
 
 const axios = require('axios')
 const slugify = require('slugify')
+const qs = require('querystring')
 
 function Exception(e) {
   return { e, data: e.data && e.data.errors && e.data.errors };
@@ -168,12 +169,12 @@ module.exports = {
     try {
       console.log('Executing game service...')
 
-      const gogApiUrl = `https://www.gog.com/games/ajax/filtered?mediaType=game&page=1&sort=popularity`
+      const gogApiUrl = `https://www.gog.com/games/ajax/filtered?mediaType=game&${qs.stringify(params)}`
 
       const { data : { products } } = await axios.get(gogApiUrl)
 
-      await createManyToManyData([ products[2], products[3] ])
-      await createGames([ products[2], products[3] ])
+      await createManyToManyData(products)
+      await createGames(products)
       console.log('Game service done!');
     } catch(e) {
       console.log('Populate', Exception(e));

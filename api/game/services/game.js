@@ -53,6 +53,13 @@ module.exports = {
     console.log(await getGameInfo(products[1].slug))
 
     await handleRelationCreation('publisher', products[1].publisher)
-    await handleRelationCreation('developer', products[1].developer)
+
+    if (Array.isArray(products[1].developer)) {
+      products[1].developer.map(
+        developer => await handleRelationCreation('developer', developer)
+      )
+    } else {
+      await handleRelationCreation('developer', products[1].developer)
+    }
   }
 };

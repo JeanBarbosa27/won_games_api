@@ -8,24 +8,37 @@
 const axios = require('axios')
 const slugify = require('slugify')
 
+function Exception(e) {
+  return { e, data: e.data && e.data.errors && e.data.errors };
+}
+
+function timeout(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function getGameInfo(slug) {
-  const jsdom = require('jsdom')
-  const { JSDOM } = jsdom
-  const { data } = await axios.get(`https://www.gog.com/game/${slug}`)
-  const dom = new JSDOM(data)
+  try {
 
-  const ratingElement = dom.window.document.querySelector('.age-restrictions__icon use')
-  const descriptionElement = dom.window.document.querySelector('.description')
+    const jsdom = require('jsdom')
+    const { JSDOM } = jsdom
+    const { data } = await axios.get(`https://www.gog.com/game/${slug}`)
+    const dom = new JSDOM(data)
 
-  return {
-    rating: ratingElement
-              ? ratingElement
-                  .getAttribute('xlink:href')
-                  .replace(/_/g, '')
-                  .replace(/[^\w-]+/g, '')
-              : 'BR0',
-    short_description: descriptionElement.textContent.trim().slice(0, 160),
-    description: descriptionElement.innerHTML
+    const ratingElement = dom.window.document.querySelector('.age-restrictions__icon use')
+    const descriptionElement = dom.window.document.querySelector('.description')
+
+    return {
+      rating: ratingElement
+                ? ratingElement
+                    .getAttribute('xlink:href')
+                    .replace(/_/g, '')
+                    .replace(/[^\w-]+/g, '')
+                : 'BR0',
+      short_description: descriptionElement.textContent.trim().slice(0, 160),
+      description: descriptionElement.innerHTML
+    }
+  } catch(e) {
+    console.log('getGameInfo', Exception(e))
   }
 }
 
@@ -79,21 +92,50 @@ async function createManyToManyData(products) {
   ])
 }
 
-async function createGame(products) {
-  Promise.all(
+async function setImage({ image, game, field = 'cover' }) {
+  try {
+    const url = `https:${image}_bg_crop_1680x655.jpg`;
+    const { data } = await axios.get(url, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(data, 'base64');
+
+    const FormData = require('form-data');
+    const formData = new FormData();
+
+    formData.append('refId', game.id);
+    formData.append('ref', 'game');
+    formData.append('field', field);
+    formData.append('files', buffer, { filename: `${game.slug}.jpg` });
+
+    console.info(`Uploading ${field} image: ${game.slug}.jpg`);
+
+    await axios({
+      method: 'POST',
+      url: `http://${strapi.config.host}:${strapi.config.port}/upload`,
+      data: formData,
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${formData._boundary}`,
+      },
+    });
+  } catch(e) {
+    console.log('setImage', Exception(e))
+  }
+}
+
+async function createGames(products) {
+  await Promise.all(
     products.map(async (product) => {
       const findGame = await findByName('game', product.title)
 
       if(!findGame) {
         console.log(`Creating game: ${product.title}...`)
 
-        const game = strapi.services.game.create({
+        const game = await strapi.services.game.create({
           name: product.title,
           slug: product.slug.replace(/_/g, '-'),
           price: product.price.amount,
           release_date: new Date(Number(
-            product.globalReleaseDate * 1000
-          )).toISOString(),
+            product.globalReleaseDate) * 1000
+          ).toISOString(),
           categories: await Promise.all(
             product.genres.map(name => findByName('category', name))
           ),
@@ -105,6 +147,16 @@ async function createGame(products) {
           ...(await getGameInfo(product.slug))
         })
 
+        await setImage({ image: product.image, game })
+
+        await Promise.all(
+          product.gallery.slice(0, 5).map(
+            url => setImage({ image: url, game, field: 'gallery' })
+          )
+        )
+
+        await timeout(2000)
+
         return game
       }
     })
@@ -113,17 +165,19 @@ async function createGame(products) {
 
 module.exports = {
   populate: async (params) => {
-    console.log('Executing game service...')
+    try {
+      console.log('Executing game service...')
 
-    const gogApiUrl = `https://www.gog.com/games/ajax/filtered?mediaType=game&page=1&sort=popularity`
+      const gogApiUrl = `https://www.gog.com/games/ajax/filtered?mediaType=game&page=1&sort=popularity`
 
-    const { data : { products } } = await axios.get(gogApiUrl)
+      const { data : { products } } = await axios.get(gogApiUrl)
 
-    console.log(await getGameInfo(products[1].slug))
-
-    await createManyToManyData([ products[2], products[3] ])
-    await createGame([ products[2], products[3] ])
-    console.log('Game service done!');
+      await createManyToManyData([ products[2], products[3] ])
+      await createGames([ products[2], products[3] ])
+      console.log('Game service done!');
+    } catch(e) {
+      console.log('Populate', Exception(e));
+    }
 
   }
 };
